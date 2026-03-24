@@ -1,0 +1,85 @@
+name: Mint Gitcoin Token
+
+# Automatically mint a Gitcoin token for every push that modifies website files.
+# Requires the following repository secret:
+#   GHP_TOKEN  – a GitHub Personal Access Token with `repo` scope, used to
+#                commit the minted token back into the tokens/ directory.
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '**.html'
+      - '**.md'
+      - '**.json'
+      - 'docs/**'
+      - '_site/**'
+
+jobs:
+  mint-token:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GHP_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Determine page URL
+        id: page_url
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          # Default to GitHub Pages URL; override PAGE_URL env var for custom domains.
+          PAGE_URL="${PAGE_URL:-https://${OWNER}.github.io/${REPO}/}"
+          echo "url=${PAGE_URL}" >> "$GITHUB_OUTPUT"
+        env:
+          PAGE_URL: ${{ vars.PAGE_URL }}
+
+      - name: Mint Gitcoin token
+        run: |
+          node src/token/mint.js \
+            --owner "${{ github.repository_owner }}" \
+            --repo  "${{ github.repository }}" \
+            --url   "${{ steps.page_url.outputs.url }}" \
+            --title "${{ github.event.repository.name }}" \
+            --description "Auto-minted token for ${{ github.repository }} on push" \
+            --sha   "${{ github.sha }}" \
+            --out   tokens/
+
+      - name: Validate minted token
+        run: |
+          NEWEST=$(ls -t tokens/*.json 2>/dev/null | head -1)
+          if [ -n "$NEWEST" ]; then
+            node src/validator/check.js --token "$NEWEST"
+          fi
+
+      - name: Credit wallet
+        run: |
+          NEWEST=$(ls -t tokens/*.json 2>/dev/null | head -1)
+          if [ -n "$NEWEST" ]; then
+            TOKEN_ID=$(node -e "const t=require('./${NEWEST}'); process.stdout.write(t.id)")
+            node -e "
+              const { credit } = require('./src/wallet/wallet.js');
+              credit('${{ github.repository_owner }}', '${TOKEN_ID}', 1);
+              console.log('Wallet credited.');
+            "
+          fi
+
+      - name: Commit tokens back to repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tokens/
+          git diff --cached --quiet || git commit -m "chore: mint Gitcoin token for ${{ github.sha }}"
+          git push

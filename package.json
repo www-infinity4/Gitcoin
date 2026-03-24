@@ -1,0 +1,17 @@
+{
+  "name": "gitcoin",
+  "version": "1.0.0",
+  "description": "Gitcoin – proof-of-ownership tokens for GitHub Pages websites",
+  "main": "src/token/mint.js",
+  "scripts": {
+    "test": "node tests/token.test.js",
+    "mint": "node src/token/mint.js",
+    "validate": "node src/validator/check.js",
+    "wallet": "node src/wallet/wallet.js"
+  },
+  "keywords": ["gitcoin", "token", "github-pages", "qr", "wallet"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}
