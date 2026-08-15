@@ -114,4 +114,4 @@ automatically:
   "wallet": { "balance": 1, "transactions": [...] }
 }
 ```
-
+<script src="https://www-infinity4.github.io/Mint-For-Infinity/infinity-wallet-menu.js" defer></script>
