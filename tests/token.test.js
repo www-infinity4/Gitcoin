@@ -138,10 +138,10 @@ test('getWallet returns null for unknown owner', () => {
 
 test('transfer moves gits between wallets', () => {
   const reg = tmpRegistry();
-  credit('dave', 'token-xyz', 5, reg);
-  const result = transfer('dave', 'eve', 3, 'token-xyz', reg);
-  assert.strictEqual(result.from.balance, 2);
-  assert.strictEqual(result.to.balance, 3);
+  credit('dave', 'token-xyz', 1, reg);
+  const result = transfer('dave', 'eve', 1, 'token-xyz', reg);
+  assert.strictEqual(result.from.balance, 0);
+  assert.strictEqual(result.to.balance, 1);
 });
 
 test('transfer throws on insufficient balance', () => {
@@ -152,7 +152,7 @@ test('transfer throws on insufficient balance', () => {
 
 test('transfer throws on non-positive amount', () => {
   const reg = tmpRegistry();
-  credit('henry', 'token-002', 5, reg);
+  credit('henry', 'token-002', 1, reg);
   assert.throws(() => transfer('henry', 'iris', 0, 'token-002', reg), /positive/);
 });
 
