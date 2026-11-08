@@ -17,7 +17,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const {GITCOIN_OWNER,assertOwner}=require('../owner-policy');
 
 const DEFAULT_REGISTRY = path.join(__dirname, '../../tokens/wallets.json');
 
@@ -49,7 +48,6 @@ function saveRegistry(registry, registryPath = DEFAULT_REGISTRY) {
  * @param {string} owner
  */
 function ensureWallet(registry, owner) {
-  assertOwner(owner);
   if (!registry[owner]) {
     registry[owner] = {
       owner,
@@ -103,9 +101,20 @@ function credit(owner, tokenId, amount = 1, registryPath = DEFAULT_REGISTRY) {
  * @returns {{ from: object, to: object }}
  */
 function transfer(from, to, amount, tokenId, registryPath = DEFAULT_REGISTRY) {
-  // GIT is earned only by the owner. Customer balances/transfers belong
-  // to other separately named assets, never this owner-only issuer.
-  throw new Error('gitcoin_owner_only_not_transferable');
+  if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error('invalid_transfer_amount');
+  if (typeof from !== 'string' || !from.trim() || typeof to !== 'string' || !to.trim() || from === to)
+    throw new Error('invalid_transfer_participants');
+  const registry = loadRegistry(registryPath);
+  ensureWallet(registry, from);
+  ensureWallet(registry, to);
+  if (registry[from].balance < amount) throw new Error('insufficient_balance');
+  const timestamp = new Date().toISOString();
+  registry[from].balance -= amount;
+  registry[from].transactions.push({type:'transfer',amount:-amount,token_id:tokenId,counterparty:to,timestamp});
+  registry[to].balance += amount;
+  registry[to].transactions.push({type:'receive',amount,token_id:tokenId,counterparty:from,timestamp});
+  saveRegistry(registry, registryPath);
+  return {from:registry[from],to:registry[to]};
 }
 
 /**
@@ -115,7 +124,6 @@ function transfer(from, to, amount, tokenId, registryPath = DEFAULT_REGISTRY) {
  * @returns {object|null}
  */
 function getWallet(owner, registryPath = DEFAULT_REGISTRY) {
-  if (owner !== GITCOIN_OWNER) return null;
   const registry = loadRegistry(registryPath);
   return registry[owner] || null;
 }
@@ -177,4 +185,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { credit, transfer, getWallet, loadRegistry, saveRegistry, ensureWallet, GITCOIN_OWNER };
+module.exports = { credit, transfer, getWallet, loadRegistry, saveRegistry, ensureWallet };
