@@ -17,6 +17,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const {GITCOIN_OWNER,assertOwner}=require('../owner-policy');
 
 const DEFAULT_REGISTRY = path.join(__dirname, '../../tokens/wallets.json');
 
@@ -48,6 +49,7 @@ function saveRegistry(registry, registryPath = DEFAULT_REGISTRY) {
  * @param {string} owner
  */
 function ensureWallet(registry, owner) {
+  assertOwner(owner);
   if (!registry[owner]) {
     registry[owner] = {
       owner,
@@ -66,21 +68,29 @@ function ensureWallet(registry, owner) {
  * @param {string} [registryPath]
  */
 function credit(owner, tokenId, amount = 1, registryPath = DEFAULT_REGISTRY) {
+  assertOwner(owner);
+  if (amount !== 1) throw new Error('gitcoin_one_per_receipt');
+  if (typeof tokenId !== 'string' || !/^[A-Za-z0-9:_-]{3,160}$/.test(tokenId))
+    throw new Error('gitcoin_invalid_receipt');
   const registry = loadRegistry(registryPath);
   ensureWallet(registry, owner);
-  registry[owner].balance += amount;
-  if (!registry[owner].tokens.includes(tokenId)) {
-    registry[owner].tokens.push(tokenId);
-  }
-  registry[owner].transactions.push({
+  const wallet = registry[owner];
+  if (!Array.isArray(wallet.tokens) || !Array.isArray(wallet.transactions) ||
+      !Number.isSafeInteger(wallet.balance) || wallet.balance < 0)
+    throw new Error('gitcoin_invalid_wallet');
+  // The token receipt is the idempotency key. A retry cannot credit again.
+  if (wallet.tokens.includes(tokenId)) return wallet;
+  wallet.balance += 1;
+  wallet.tokens.push(tokenId);
+  wallet.transactions.push({
     type: 'mint',
-    amount,
+    amount: 1,
     token_id: tokenId,
     counterparty: null,
     timestamp: new Date().toISOString(),
   });
   saveRegistry(registry, registryPath);
-  return registry[owner];
+  return wallet;
 }
 
 /**
@@ -93,26 +103,9 @@ function credit(owner, tokenId, amount = 1, registryPath = DEFAULT_REGISTRY) {
  * @returns {{ from: object, to: object }}
  */
 function transfer(from, to, amount, tokenId, registryPath = DEFAULT_REGISTRY) {
-  if (amount <= 0) throw new Error('Transfer amount must be positive');
-
-  const registry = loadRegistry(registryPath);
-  ensureWallet(registry, from);
-  ensureWallet(registry, to);
-
-  if (registry[from].balance < amount) {
-    throw new Error(`Insufficient balance: ${from} has ${registry[from].balance}, needs ${amount}`);
-  }
-
-  const timestamp = new Date().toISOString();
-
-  registry[from].balance -= amount;
-  registry[from].transactions.push({ type: 'transfer', amount: -amount, token_id: tokenId, counterparty: to, timestamp });
-
-  registry[to].balance += amount;
-  registry[to].transactions.push({ type: 'receive', amount, token_id: tokenId, counterparty: from, timestamp });
-
-  saveRegistry(registry, registryPath);
-  return { from: registry[from], to: registry[to] };
+  // GIT is earned only by the owner. Customer balances/transfers belong
+  // to other separately named assets, never this owner-only issuer.
+  throw new Error('gitcoin_owner_only_not_transferable');
 }
 
 /**
@@ -122,6 +115,7 @@ function transfer(from, to, amount, tokenId, registryPath = DEFAULT_REGISTRY) {
  * @returns {object|null}
  */
 function getWallet(owner, registryPath = DEFAULT_REGISTRY) {
+  if (owner !== GITCOIN_OWNER) return null;
   const registry = loadRegistry(registryPath);
   return registry[owner] || null;
 }
@@ -183,4 +177,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { credit, transfer, getWallet, loadRegistry, saveRegistry, ensureWallet };
+module.exports = { credit, transfer, getWallet, loadRegistry, saveRegistry, ensureWallet, GITCOIN_OWNER };
