@@ -100,13 +100,13 @@ function credit(owner, tokenId, amount = 1, registryPath = DEFAULT_REGISTRY) {
  * @returns {{ from: object, to: object }}
  */
 function transfer(from, to, amount, tokenId, registryPath = DEFAULT_REGISTRY) {
-  if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error('invalid_transfer_amount');
+  if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error('Transfer amount must be positive integer');
   if (typeof from !== 'string' || !from.trim() || typeof to !== 'string' || !to.trim() || from === to)
     throw new Error('invalid_transfer_participants');
   const registry = loadRegistry(registryPath);
   ensureWallet(registry, from);
   ensureWallet(registry, to);
-  if (registry[from].balance < amount) throw new Error('insufficient_balance');
+  if (registry[from].balance < amount) throw new Error(`Insufficient balance: ${from} has ${registry[from].balance}, needs ${amount}`);
   const timestamp = new Date().toISOString();
   registry[from].balance -= amount;
   registry[from].transactions.push({type:'transfer',amount:-amount,token_id:tokenId,counterparty:to,timestamp});
