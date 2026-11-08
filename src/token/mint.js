@@ -15,6 +15,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const {assertOwner}=require('../owner-policy');
 
 /**
  * Generate a UUID v4 using the built-in crypto module.
@@ -80,6 +81,7 @@ function mintToken({ owner, repo, pageUrl, title = '', description = '', commitS
   if (!owner || !repo || !pageUrl) {
     throw new Error('owner, repo, and pageUrl are required');
   }
+  assertOwner(owner);
 
   const id = uuidv4();
   const createdAt = new Date().toISOString();
