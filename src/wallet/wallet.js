@@ -66,7 +66,6 @@ function ensureWallet(registry, owner) {
  * @param {string} [registryPath]
  */
 function credit(owner, tokenId, amount = 1, registryPath = DEFAULT_REGISTRY) {
-  assertOwner(owner);
   if (amount !== 1) throw new Error('gitcoin_one_per_receipt');
   if (typeof tokenId !== 'string' || !/^[A-Za-z0-9:_-]{3,160}$/.test(tokenId))
     throw new Error('gitcoin_invalid_receipt');
