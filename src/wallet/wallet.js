@@ -66,21 +66,28 @@ function ensureWallet(registry, owner) {
  * @param {string} [registryPath]
  */
 function credit(owner, tokenId, amount = 1, registryPath = DEFAULT_REGISTRY) {
+  if (amount !== 1) throw new Error('gitcoin_one_per_receipt');
+  if (typeof tokenId !== 'string' || !/^[A-Za-z0-9:_-]{3,160}$/.test(tokenId))
+    throw new Error('gitcoin_invalid_receipt');
   const registry = loadRegistry(registryPath);
   ensureWallet(registry, owner);
-  registry[owner].balance += amount;
-  if (!registry[owner].tokens.includes(tokenId)) {
-    registry[owner].tokens.push(tokenId);
-  }
-  registry[owner].transactions.push({
+  const wallet = registry[owner];
+  if (!Array.isArray(wallet.tokens) || !Array.isArray(wallet.transactions) ||
+      !Number.isSafeInteger(wallet.balance) || wallet.balance < 0)
+    throw new Error('gitcoin_invalid_wallet');
+  // The token receipt is the idempotency key. A retry cannot credit again.
+  if (wallet.tokens.includes(tokenId)) return wallet;
+  wallet.balance += 1;
+  wallet.tokens.push(tokenId);
+  wallet.transactions.push({
     type: 'mint',
-    amount,
+    amount: 1,
     token_id: tokenId,
     counterparty: null,
     timestamp: new Date().toISOString(),
   });
   saveRegistry(registry, registryPath);
-  return registry[owner];
+  return wallet;
 }
 
 /**
@@ -93,26 +100,20 @@ function credit(owner, tokenId, amount = 1, registryPath = DEFAULT_REGISTRY) {
  * @returns {{ from: object, to: object }}
  */
 function transfer(from, to, amount, tokenId, registryPath = DEFAULT_REGISTRY) {
-  if (amount <= 0) throw new Error('Transfer amount must be positive');
-
+  if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error('Transfer amount must be positive integer');
+  if (typeof from !== 'string' || !from.trim() || typeof to !== 'string' || !to.trim() || from === to)
+    throw new Error('invalid_transfer_participants');
   const registry = loadRegistry(registryPath);
   ensureWallet(registry, from);
   ensureWallet(registry, to);
-
-  if (registry[from].balance < amount) {
-    throw new Error(`Insufficient balance: ${from} has ${registry[from].balance}, needs ${amount}`);
-  }
-
+  if (registry[from].balance < amount) throw new Error(`Insufficient balance: ${from} has ${registry[from].balance}, needs ${amount}`);
   const timestamp = new Date().toISOString();
-
   registry[from].balance -= amount;
-  registry[from].transactions.push({ type: 'transfer', amount: -amount, token_id: tokenId, counterparty: to, timestamp });
-
+  registry[from].transactions.push({type:'transfer',amount:-amount,token_id:tokenId,counterparty:to,timestamp});
   registry[to].balance += amount;
-  registry[to].transactions.push({ type: 'receive', amount, token_id: tokenId, counterparty: from, timestamp });
-
+  registry[to].transactions.push({type:'receive',amount,token_id:tokenId,counterparty:from,timestamp});
   saveRegistry(registry, registryPath);
-  return { from: registry[from], to: registry[to] };
+  return {from:registry[from],to:registry[to]};
 }
 
 /**

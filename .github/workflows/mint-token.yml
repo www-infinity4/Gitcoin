@@ -14,6 +14,7 @@ on:
       - '**.html'
       - '**.md'
       - '**.json'
+      - '!tokens/**' # minted token/registry commits must never trigger another mint
       - 'docs/**'
       - '_site/**'
 
